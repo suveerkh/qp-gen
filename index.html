@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Question Generator</title>
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Generate custom questions with answers from your PDF documents using AI. Supports multiple choice, true/false, short answer, fill-in-the-blanks, essay, and definition questions.">
+    <meta name="keywords" content="AI question generator, PDF to questions, question from document, multiple choice questions, true false questions, short answer questions, fill-in-the-blanks, essay questions, definition questions, AI learning tool, study aid, test prep">
+    <meta name="author" content="Suveer Khandelwal">
+
+    <!-- Open Graph Meta Tags (for social media sharing) -->
+    <meta property="og:title" content="AI Question Generator by Suveer Khandelwal">
+    <meta property="og:description" content="Generate custom questions with answers from your PDF documents using AI. Supports multiple choice, true/false, short answer, fill-in-the-blanks, essay, and definition questions.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://suveerkh.github.io/qp-gen"> <!-- Updated URL -->
+    <meta property="og:image" content="https://placehold.co/1200x630/cccccc/333333?text=AI+Question+Generator"> <!-- Placeholder image -->
+
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="AI Question Generator by Suveer Khandelwal">
+    <meta name="twitter:description" content="Generate custom questions with answers from your PDF documents using AI. Supports multiple choice, true/false, short answer, fill-in-the-blanks, essay, and definition questions.">
+    <meta name="twitter:image" content="https://placehold.co/1200x675/cccccc/333333?text=AI+Question+Generator"> <!-- Placeholder image -->
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "http://schema.org",
+      "@type": "WebPage",
+      "name": "AI Question Generator",
+      "description": "Generate custom questions with answers from your PDF documents using AI. Supports multiple choice, true/false, short answer, fill-in-the-blanks, essay, and definition questions.",
+      "author": {
+        "@type": "Person",
+        "name": "Suveer Khandelwal"
+      },
+      "url": "https://suveerkh.github.io/qp-gen" <!-- Updated URL -->
+    }
+    </script>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for multi-select dropdown */
+        select[multiple] {
+            height: auto; /* Allow height to adjust based on content */
+            min-height: 120px; /* Minimum height to show multiple options */
+        }
+        select[multiple] option:checked {
+            background-color: #bfdbfe; /* bg-blue-200 */
+            color: #1d4ed8; /* text-blue-700 */
+        }
+        /* Style for when options are hovered/focused */
+        select[multiple] option:not(:checked):hover {
+            background-color: #e0f2fe; /* bg-blue-50 */
+        }
+    </style>
+    <!-- React and Babel CDNs -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- PDF.js CDNs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        // Set the worker source for pdf.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+        const { createRoot } = ReactDOM; // Destructure createRoot from ReactDOM
+
+        // Main App component
+        const App = () => {
+            const [chapterText, setChapterText] = useState('');
+            const [questionType, setQuestionType] = useState([]); // Array to store selected question types
+            // New state: an object to store the number of questions for each selected type
+            const [questionCounts, setQuestionCounts] = useState({});
+            const [generatedQuestions, setGeneratedQuestions] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+            const [errorMessage, setErrorMessage] = useState('');
+            const [pdfProcessing, setPdfProcessing] = useState(false); // State for PDF processing
+
+            // Function to handle PDF file selection and text extraction
+            const handlePdfUpload = async (event) => {
+                const file = event.target.files[0];
+                if (!file) {
+                    setErrorMessage('');
+                    setChapterText('');
+                    return;
+                }
+
+                if (file.type !== 'application/pdf') {
+                    setErrorMessage('Please upload a valid PDF file.');
+                    setChapterText('');
+                    return;
+                }
+
+                setPdfProcessing(true);
+                setErrorMessage('');
+                setChapterText(''); // Clear previous text
+                setGeneratedQuestions(''); // Clear previous questions
+
+                try {
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        const arrayBuffer = e.target.result;
+                        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                        let fullText = '';
+
+                        // Iterate through each page to extract text
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const textContent = await page.getTextContent();
+                            const pageText = textContent.items.map(item => item.str).join(' ');
+                            fullText += pageText + '\n';
+                        }
+                        setChapterText(fullText.trim()); // Set the extracted text
+                    };
+                    reader.readAsArrayBuffer(file);
+                } catch (error) {
+                    setErrorMessage('Failed to read PDF. It might be scanned, image-based, or corrupted.');
+                    console.error('Error reading PDF:', error);
+                } finally {
+                    setPdfProcessing(false);
+                }
+            };
+
+            // Function to handle changes in the multi-select dropdown
+            const handleQuestionTypeChange = (event) => {
+                const { options } = event.target;
+                const newSelectedTypes = [];
+                const newQuestionCounts = { ...questionCounts }; // Copy current counts
+
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].selected) {
+                        const type = options[i].value;
+                        newSelectedTypes.push(type);
+                        // If a new type is selected, initialize its count if not already set
+                        if (!(type in newQuestionCounts)) {
+                            newQuestionCounts[type] = 5; // Default to 5 questions
+                        }
+                    }
+                }
+
+                // Remove counts for types that are no longer selected
+                for (const type in newQuestionCounts) {
+                    if (!newSelectedTypes.includes(type)) {
+                        delete newQuestionCounts[type];
+                    }
+                }
+
+                setQuestionType(newSelectedTypes);
+                setQuestionCounts(newQuestionCounts);
+            };
+
+            // Function to handle changes for individual number of questions input
+            const handleIndividualNumQuestionsChange = (type, event) => {
+                const value = parseInt(event.target.value, 10);
+                setQuestionCounts(prevCounts => ({
+                    ...prevCounts,
+                    [type]: !isNaN(value) && value > 0 ? value : '' // Store value or empty string for invalid
+                }));
+            };
+
+            // Function to handle question generation
+            const generateQuestions = async () => {
+                setIsLoading(true);
+                setErrorMessage('');
+                setGeneratedQuestions(''); // Clear previous questions
+
+                if (!chapterText.trim()) {
+                    setErrorMessage('Please provide some document text (either by uploading a PDF or pasting it directly) to generate questions.');
+                    setIsLoading(false);
+                    return;
+                }
+
+                if (questionType.length === 0) {
+                    setErrorMessage('Please select at least one question type.');
+                    setIsLoading(false);
+                    return;
+                }
+
+                // Validate individual question counts
+                const invalidCounts = questionType.filter(type =>
+                    !questionCounts[type] || questionCounts[type] <= 0
+                );
+
+                if (invalidCounts.length > 0) {
+                    setErrorMessage('Please enter a valid number of questions (greater than 0) for all selected types.');
+                    setIsLoading(false);
+                    return;
+                }
+
+                try {
+                    // Build a detailed request string for the AI model
+                    const questionRequests = questionType.map(type =>
+                        `${questionCounts[type]} ${type} questions`
+                    ).join(', ');
+
+                    // Construct the prompt for the AI model
+                    const prompt = `Given the following document text, generate questions as specified below.
+                    For each question, also provide a detailed answer. Please adhere to these formatting guidelines:
+
+                    Document Text:
+                    \`\`\`
+                    ${chapterText}
+                    \`\`\`
+
+                    Question Generation Request: ${questionRequests}.
+
+                    - For each question type requested, generate the exact number of questions specified.
+                    - For multiple choice questions, include exactly 4 options (A, B, C, D), clearly indicate the correct answer (e.g., "Correct Answer: B"), and provide a detailed explanation for the correct answer.
+                    - For true/false questions, clearly state whether the statement is true or false (e.g., "Answer: True") and provide a detailed explanation.
+                    - For short answer questions, provide the question itself and a concise yet comprehensive answer.
+                    - For fill-in-the-blanks, provide the sentence with a blank and the correct word(s) in parentheses (e.g., "The capital of France is ______ (Paris)."), followed by a detailed explanation or context.
+                    - For essay questions, provide the question and a suggested outline or key points for a detailed answer.
+                    - For definition questions, provide the term to be defined and a clear, detailed definition.
+                    - Ensure all questions and answers are directly related to the provided text.
+                    - Clearly label each section by question type (e.g., "Multiple Choice Questions:", "True/False Questions:").
+                    - Start each question on a new line and number them sequentially within their section.
+                    - Place the answer directly below its corresponding question, clearly labeled "Answer:" or "Explanation:".`;
+
+                    // Prepare the payload for the Gemini API call
+                    let chatHistory = [];
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = { contents: chatHistory };
+
+                    // Make the API call to Gemini 2.0 Flash
+                    const apiKey = ""; // API key will be provided by the environment
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+
+                    // Process the API response
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+                        setGeneratedQuestions(text);
+                    } else {
+                        setErrorMessage('Failed to generate questions. Please try again.');
+                        console.error('API response structure unexpected:', result);
+                    }
+                } catch (error) {
+                    setErrorMessage('An error occurred while generating questions. Please check your input and try again.');
+                    console.error('Error generating questions:', error);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+                    <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-4xl border border-gray-200">
+                        <h1 className="text-4xl font-extrabold text-gray-900 mb-6 text-center">
+                            AI Question Generator
+                        </h1>
+                        <p className="text-gray-600 mb-8 text-center text-lg">
+                            Upload your PDF or paste text, select question types, specify count for each, and generate questions with answers.
+                        </p>
+
+                        {/* PDF Upload Input */}
+                        <div className="mb-6 border-b pb-6 border-gray-200">
+                            <label htmlFor="pdfUpload" className="block text-lg font-semibold text-gray-700 mb-2">
+                                Upload PDF Document:
+                            </label>
+                            <input
+                                type="file"
+                                id="pdfUpload"
+                                accept=".pdf"
+                                onChange={handlePdfUpload}
+                                className="w-full text-gray-700 bg-white border border-gray-300 rounded-lg py-3 px-4 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                                disabled={pdfProcessing || isLoading}
+                            />
+                            {pdfProcessing && (
+                                <p className="mt-3 text-sm text-blue-600 flex items-center">
+                                    <svg className="animate-spin h-4 w-4 text-blue-500 mr-2" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Processing PDF... Please wait.
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Input for Document Text */}
+                        <div className="mb-6">
+                            <label htmlFor="chapterText" className="block text-lg font-semibold text-gray-700 mb-2">
+                                Document Text:
+                            </label>
+                            <textarea
+                                id="chapterText"
+                                className="w-full p-4 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out resize-y min-h-[200px] text-gray-800 text-base"
+                                placeholder="Paste your document content here, or it will be populated automatically after PDF upload..."
+                                value={chapterText}
+                                onChange={(e) => setChapterText(e.target.value)}
+                                disabled={pdfProcessing}
+                            ></textarea>
+                        </div>
+
+                        {/* Input for Question Type - multi-select dropdown */}
+                        <div className="mb-6">
+                            <label htmlFor="questionType" className="block text-lg font-semibold text-gray-700 mb-2">
+                                Select Question Type(s):
+                            </label>
+                            <select
+                                id="questionType"
+                                multiple
+                                value={questionType} // Binds the selected options to the state array
+                                onChange={handleQuestionTypeChange}
+                                className="w-full p-4 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out text-gray-800 text-base appearance-none"
+                                disabled={pdfProcessing || isLoading}
+                            >
+                                <option value="Multiple Choice">Multiple Choice</option>
+                                <option value="True/False">True/False</option>
+                                <option value="Short Answer">Short Answer</option>
+                                <option value="Fill-in-the-Blanks">Fill-in-the-Blanks</option>
+                                <option value="Essay">Essay</option>
+                                <option value="Definition">Definition</option>
+                            </select>
+                            <p className="mt-2 text-sm text-gray-500">Hold Cmd/Ctrl to select multiple options.</p>
+                        </div>
+
+                        {/* Dynamic Inputs for Number of Questions per Type */}
+                        {questionType.length > 0 && (
+                            <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                                <h3 className="text-lg font-semibold text-gray-700 mb-3">
+                                    Number of Questions for Each Type:
+                                </h3>
+                                {questionType.map(type => (
+                                    <div key={type} className="flex items-center mb-3">
+                                        <label htmlFor={`num-${type}`} className="w-1/2 text-gray-700 font-medium mr-2">
+                                            {type}:
+                                        </label>
+                                        <input
+                                            type="number"
+                                            id={`num-${type}`}
+                                            value={questionCounts[type] || ''}
+                                            onChange={(e) => handleIndividualNumQuestionsChange(type, e)}
+                                            min="1"
+                                            className="w-1/2 p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out text-gray-800 text-base"
+                                            placeholder="e.g., 5"
+                                            disabled={pdfProcessing || isLoading}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Generate Questions Button */}
+                        <button
+                            onClick={generateQuestions}
+                            className={`w-full px-6 py-4 bg-blue-600 text-white font-bold text-xl rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:scale-105 ${isLoading || pdfProcessing ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            disabled={isLoading || pdfProcessing}
+                        >
+                            {isLoading ? (
+                                <div className="flex items-center justify-center">
+                                    <svg className="animate-spin h-6 w-6 text-white mr-3" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Generating Questions...
+                                </div>
+                            ) : (
+                                'Generate Questions'
+                            )}
+                        </button>
+
+                        {/* Error Message Display */}
+                        {errorMessage && (
+                            <div className="mt-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg text-lg text-center">
+                                {errorMessage}
+                            </div>
+                        )}
+
+                        {/* Generated Questions Display */}
+                        {generatedQuestions && (
+                            <div className="mt-8 p-6 bg-gray-50 border border-gray-200 rounded-lg shadow-inner">
+                                <h2 className="text-3xl font-bold text-gray-800 mb-4 text-center">
+                                    Generated Questions with Answers:
+                                </h2>
+                                <div className="prose prose-lg max-w-none text-gray-800 leading-relaxed break-words whitespace-pre-wrap">
+                                    {generatedQuestions}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Render the React App using createRoot
+        const container = document.getElementById('root');
+        const root = createRoot(container);
+        root.render(<App />);
+    </script>
+</body>
+</html>
