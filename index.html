@@ -13,14 +13,14 @@
     <meta property="og:title" content="AI Question Generator by Suveer Khandelwal">
     <meta property="og:description" content="Generate custom questions with answers from your PDF documents using AI. Supports multiple choice, true/false, short answer, fill-in-the-blanks, essay, and definition questions.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://suveerkh.github.io/qp-gen"> <!-- Updated URL -->
-    <meta property="og:image" content="https://placehold.co/1200x630/cccccc/333333?text=AI+Question+Generator"> <!-- Placeholder image -->
+    <meta property="og:url" content="https://suveerkh.github.io/qp-gen">
+    <meta property="og:image" content="https://placehold.co/1200x630/cccccc/333333?text=AI+Question+Generator">
 
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="AI Question Generator by Suveer Khandelwal">
     <meta name="twitter:description" content="Generate custom questions with answers from your PDF documents using AI. Supports multiple choice, true/false, short answer, fill-in-the-blanks, essay, and definition questions.">
-    <meta name="twitter:image" content="https://placehold.co/1200x675/cccccc/333333?text=AI+Question+Generator"> <!-- Placeholder image -->
+    <meta name="twitter:image" content="https://placehold.co/1200x675/cccccc/333333?text=AI+Question+Generator">
 
     <!-- Schema.org Structured Data -->
     <script type="application/ld+json">
@@ -33,7 +33,7 @@
         "@type": "Person",
         "name": "Suveer Khandelwal"
       },
-      "url": "https://suveerkh.github.io/qp-gen" <!-- Updated URL -->
+      "url": "https://suveerkh.github.io/qp-gen"
     }
     </script>
 
@@ -70,8 +70,148 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
     </script>
 </head>
-<body>
-    <div id="root"></div>
+<body class="min-h-screen flex flex-col">
+    <div id="root" class="flex-grow flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-4xl border border-gray-200">
+            <h1 className="text-4xl font-extrabold text-gray-900 mb-6 text-center">
+                AI Question Generator
+            </h1>
+            <p className="text-gray-600 mb-8 text-center text-lg">
+                Upload your PDF or paste text, select question types, specify count for each, and generate questions with answers.
+            </p>
+
+            {/* PDF Upload Input */}
+            <div className="mb-6 border-b pb-6 border-gray-200">
+                <label htmlFor="pdfUpload" className="block text-lg font-semibold text-gray-700 mb-2">
+                    Upload PDF Document:
+                </label>
+                <input
+                    type="file"
+                    id="pdfUpload"
+                    accept=".pdf"
+                    onChange={handlePdfUpload}
+                    className="w-full text-gray-700 bg-white border border-gray-300 rounded-lg py-3 px-4 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                    disabled={pdfProcessing || isLoading}
+                />
+                {pdfProcessing && (
+                    <p className="mt-3 text-sm text-blue-600 flex items-center">
+                        <svg className="animate-spin h-4 w-4 text-blue-500 mr-2" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Processing PDF... Please wait.
+                    </p>
+                )}
+            </div>
+
+            {/* Input for Document Text */}
+            <div className="mb-6">
+                <label htmlFor="chapterText" className="block text-lg font-semibold text-gray-700 mb-2">
+                    Document Text:
+                </label>
+                <textarea
+                    id="chapterText"
+                    className="w-full p-4 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out resize-y min-h-[200px] text-gray-800 text-base"
+                    placeholder="Paste your document content here, or it will be populated automatically after PDF upload..."
+                    value={chapterText}
+                    onChange={(e) => setChapterText(e.target.value)}
+                    disabled={pdfProcessing}
+                ></textarea>
+            </div>
+
+            {/* Input for Question Type - multi-select dropdown */}
+            <div className="mb-6">
+                <label htmlFor="questionType" className="block text-lg font-semibold text-gray-700 mb-2">
+                    Select Question Type(s):
+                </label>
+                <select
+                    id="questionType"
+                    multiple
+                    value={questionType} // Binds the selected options to the state array
+                    onChange={handleQuestionTypeChange}
+                    className="w-full p-4 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out text-gray-800 text-base appearance-none"
+                    disabled={pdfProcessing || isLoading}
+                >
+                    <option value="Multiple Choice">Multiple Choice</option>
+                    <option value="True/False">True/False</option>
+                    <option value="Short Answer">Short Answer</option>
+                    <option value="Fill-in-the-Blanks">Fill-in-the-Blanks</option>
+                    <option value="Essay">Essay</option>
+                    <option value="Definition">Definition</option>
+                </select>
+                <p className="mt-2 text-sm text-gray-500">Hold Cmd/Ctrl to select multiple options.</p>
+            </div>
+
+            {/* Dynamic Inputs for Number of Questions per Type */}
+            {questionType.length > 0 && (
+                <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <h3 className="text-lg font-semibold text-gray-700 mb-3">
+                        Number of Questions for Each Type:
+                    </h3>
+                    {questionType.map(type => (
+                        <div key={type} className="flex items-center mb-3">
+                            <label htmlFor={`num-${type}`} className="w-1/2 text-gray-700 font-medium mr-2">
+                                {type}:
+                            </label>
+                            <input
+                                type="number"
+                                id={`num-${type}`}
+                                value={questionCounts[type] || ''}
+                                onChange={(e) => handleIndividualNumQuestionsChange(type, e)}
+                                min="1"
+                                className="w-1/2 p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out text-gray-800 text-base"
+                                placeholder="e.g., 5"
+                                disabled={pdfProcessing || isLoading}
+                            />
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Generate Questions Button */}
+            <button
+                onClick={generateQuestions}
+                className={`w-full px-6 py-4 bg-blue-600 text-white font-bold text-xl rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:scale-105 ${isLoading || pdfProcessing ? 'opacity-70 cursor-not-allowed' : ''}`}
+                disabled={isLoading || pdfProcessing}
+            >
+                {isLoading ? (
+                    <div className="flex items-center justify-center">
+                        <svg className="animate-spin h-6 w-6 text-white mr-3" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Generating Questions...
+                    </div>
+                ) : (
+                    'Generate Questions'
+                )}
+            </button>
+
+            {/* Error Message Display */}
+            {errorMessage && (
+                <div className="mt-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg text-lg text-center">
+                    {errorMessage}
+                </div>
+            )}
+
+            {/* Generated Questions Display */}
+            {generatedQuestions && (
+                <div className="mt-8 p-6 bg-gray-50 border border-gray-200 rounded-lg shadow-inner">
+                    <h2 className="text-3xl font-bold text-gray-800 mb-4 text-center">
+                        Generated Questions with Answers:
+                    </h2>
+                    <div className="prose prose-lg max-w-none text-gray-800 leading-relaxed break-words whitespace-pre-wrap">
+                        {generatedQuestions}
+                    </div>
+                </div>
+            )}
+        </div>
+    </div>
+
+    {/* Footer is now directly inside body and positioned by flex-col on body */}
+    <footer class="w-full text-center py-4 text-gray-600 text-sm">
+        ©2025 Suveer Khandelwal
+    </footer>
 
     <script type="text/babel">
         const { useState } = React;
@@ -234,7 +374,7 @@
                     const payload = { contents: chatHistory };
 
                     // Make the API call to Gemini 2.0 Flash
-                    const apiKey = "AIzaSyAwiuw2ug0Yo3d_xvFGdFt_0ydR6aOW8r8"; // API key will be provided by the environment
+                    const apiKey = ""; // API key will be provided by the environment
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
                     const response = await fetch(apiUrl, {
@@ -264,8 +404,9 @@
             };
 
             return (
-                <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-                    <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-4xl border border-gray-200">
+                // This div is now the main content container within the flex body
+                <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+                    <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-4xl border border-gray-200 mb-8">
                         <h1 className="text-4xl font-extrabold text-gray-900 mb-6 text-center">
                             AI Question Generator
                         </h1>
@@ -399,11 +540,6 @@
                             </div>
                         )}
                     </div>
-
-                    {/* Footer */}
-                    <footer className="w-full text-center py-4 text-gray-600 text-sm mt-auto"> {/* Added mt-auto for sticky footer */}
-                        ©2025 Suveer Khandelwal
-                    </footer>
                 </div>
             );
         };
